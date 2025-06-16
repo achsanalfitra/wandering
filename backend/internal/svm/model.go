@@ -12,6 +12,7 @@ const (
 )
 
 type CannonicalOrder struct {
+	Frozen    bool   `json:"frozen"` // freezing the states when data is processed
 	ID        int64  `json:"id"`
 	VibeOrder int64  `json:"vibe_order"` // order index in the input vector
 	RealVibe  string `json:"real_vibe"`  // the raw vibe name
