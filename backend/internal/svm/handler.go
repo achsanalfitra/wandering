@@ -42,11 +42,13 @@ func (h *Handler) ValidateInput(w http.ResponseWriter, rq *http.Request) {
 }
 
 func (h *Handler) AddCannonicalVibe(w http.ResponseWriter, rq *http.Request) {
-	var cv struct {
-		O int64
-		K string
-		V string
+	type cvs struct {
+		O int64  `json:"vibe_order"`
+		K string `json:"real_vibe"`
+		V string `json:"version"`
 	}
+
+	var cv cvs
 
 	w.Header().Set("Content-Type", "application/json")
 
@@ -63,7 +65,7 @@ func (h *Handler) AddCannonicalVibe(w http.ResponseWriter, rq *http.Request) {
 	var id int64
 	err = db.QueryRow(`SELECT id FROM cannonical_order WHERE real_vibe=$1`, cv.K).Scan(&id)
 	if err == nil {
-		http.Error(w, "vibe already exists; use the update command", http.StatusBadRequest)
+		http.Error(w, "vibe already exists; use the update command", http.StatusConflict)
 		return
 	}
 	if !errors.Is(err, sql.ErrNoRows) {
