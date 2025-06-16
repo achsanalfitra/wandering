@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 )
 
@@ -15,7 +16,11 @@ type Handler struct {
 }
 
 func (h *Handler) ValidateInput(w http.ResponseWriter, rq *http.Request) {
-	var i []string
+	type is struct {
+		I []string `json:"real_vibes"`
+	}
+
+	var i is
 	w.Header().Set("Content-Type", "application/json")
 
 	err := json.NewDecoder(rq.Body).Decode(&i)
@@ -27,13 +32,18 @@ func (h *Handler) ValidateInput(w http.ResponseWriter, rq *http.Request) {
 	// connect to database
 	db := h.Database
 
-	for _, k := range i {
+	for _, k := range i.I {
 		var id int64
 		err := db.QueryRow(`SELECT id FROM cannonical_order WHERE real_vibe=$1`, k).Scan(&id)
 		if err != nil && !errors.Is(err, sql.ErrNoRows) {
 			http.Error(w, "cannot connect to database", http.StatusInternalServerError)
 			return
 
+		}
+
+		if errors.Is(err, sql.ErrNoRows) {
+			http.Error(w, fmt.Sprintf("vibe %s not found", k), http.StatusNotFound)
+			return
 		}
 	}
 
