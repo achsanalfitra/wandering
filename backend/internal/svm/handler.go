@@ -37,5 +37,48 @@ func (h *Handler) ValidateInput(w http.ResponseWriter, rq *http.Request) {
 		}
 	}
 
+	w.WriteHeader(http.StatusAccepted)
 	json.NewEncoder(w).Encode(map[string]string{"message": "input OK"})
+}
+
+func (h *Handler) AddCannonicalVibe(w http.ResponseWriter, rq *http.Request) {
+	var cv struct {
+		O int64
+		K string
+		V string
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+
+	err := json.NewDecoder(rq.Body).Decode(&cv)
+	if err != nil {
+		http.Error(w, "bad request body", http.StatusBadRequest)
+		return
+	}
+
+	// connect to db
+	db := h.Database
+
+	// check input existence
+	var id int64
+	err = db.QueryRow(`SELECT id FROM cannonical_order WHERE real_vibe=$1`, cv.K).Scan(&id)
+	if err == nil {
+		http.Error(w, "vibe already exists; use the update command", http.StatusBadRequest)
+		return
+	}
+	if !errors.Is(err, sql.ErrNoRows) {
+		http.Error(w, "cannot connect to database", http.StatusInternalServerError)
+		return
+	}
+
+	if _, err := db.Exec(
+		`INSERT INTO cannonical_order (real_vibe, vibe_order, status, version) VALUES ($1, $2, $3, $4)`,
+		cv.K, cv.O, ACTIVE, cv.V,
+	); err != nil {
+		http.Error(w, "failed to insert cannonical vibe pair", http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusAccepted)
+	json.NewEncoder(w).Encode(map[string]string{"message": "input inserted to db"})
 }
