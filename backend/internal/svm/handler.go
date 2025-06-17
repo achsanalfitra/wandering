@@ -95,6 +95,80 @@ func (h *Handler) AddCannonicalVibe(w http.ResponseWriter, rq *http.Request) {
 	json.NewEncoder(w).Encode(map[string]string{"message": "input inserted to db"})
 }
 
+func (h *Handler) AddBulkCannonicalVibe(w http.ResponseWriter, rq *http.Request) {
+	type cvs struct {
+		O int64  `json:"vibe_order"`
+		K string `json:"real_vibe"`
+		V string `json:"version"`
+	}
+
+	type cvbs struct {
+		B []cvs `json:"bulk_vibes"`
+	}
+
+	var cvb cvbs
+
+	w.Header().Set("Content-Type", "application/json")
+
+	err := json.NewDecoder(rq.Body).Decode(&cvb)
+	if err != nil {
+		http.Error(w, "bad request body", http.StatusBadRequest)
+		return
+	}
+
+	// set max input size. Let's use 100 for now
+	if len(cvb.B) > 100 {
+		http.Error(w, "input exceed bulk add limit (100)", http.StatusRequestEntityTooLarge)
+		return
+	}
+
+	// check own duplicate
+	m := make(map[string]struct{})
+	for _, i := range cvb.B {
+		if _, ok := m[i.K]; ok {
+			http.Error(w, fmt.Sprintf("vibe %s is dupicated", i.K), http.StatusBadRequest)
+			return
+		}
+		m[i.K] = struct{}{}
+	}
+
+	// begin transaction
+	db := h.Database
+	tx, err := db.Begin()
+	if err != nil {
+		http.Error(w, "failed to connect to database", http.StatusInternalServerError)
+		return
+	}
+	defer tx.Rollback()
+
+	for _, i := range cvb.B {
+		var id int64
+		err = db.QueryRow(`SELECT id FROM cannonical_order WHERE real_vibe=$1`, i.K).Scan(&id)
+		if err == nil {
+			http.Error(w, fmt.Sprintf("vibe %s exists in database", i.K), http.StatusConflict)
+			return
+		}
+
+		if !errors.Is(err, sql.ErrNoRows) {
+			http.Error(w, "cannot query the vibe", http.StatusInternalServerError)
+			return
+		}
+
+		if _, err := tx.Exec(`INSERT INTO cannonical_order (real_vibe, vibe_order, version) VALUES ($1, $2, $3)`, i.K, i.O, i.V); err != nil {
+			http.Error(w, "unexpected error occured", http.StatusInternalServerError)
+			return
+		}
+	}
+
+	if err := tx.Commit(); err != nil {
+		http.Error(w, "failed to bulk insert", http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusCreated)
+	json.NewEncoder(w).Encode(map[string]string{"message": "input bulk inserted to db"})
+}
+
 func (h *Handler) DeleteCannonicalVibe(w http.ResponseWriter, rq *http.Request) {
 	type ks struct {
 		K string `json:"real_vibe"`
@@ -313,7 +387,7 @@ func (h *Handler) Freeze(w http.ResponseWriter, rq *http.Request) {
 	}
 
 	if err := tx.Commit(); err != nil {
-		http.Error(w, "failed to reorder cannonical order", http.StatusInternalServerError)
+		http.Error(w, "failed to freeze cannonical order", http.StatusInternalServerError)
 		return
 	}
 
