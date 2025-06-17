@@ -135,3 +135,54 @@ func (h *Handler) DeleteCannonicalVibe(w http.ResponseWriter, rq *http.Request) 
 	w.WriteHeader(http.StatusAccepted)
 	json.NewEncoder(w).Encode(map[string]string{"message": "real vibe deleted"})
 }
+
+func (h *Handler) ChangeStatus(w http.ResponseWriter, rq *http.Request) {
+	type scs struct {
+		K string `json:"real_vibe"`
+		S Status `json:"status"`
+	}
+
+	var sc scs
+
+	w.Header().Set("Content-Type", "application/json")
+
+	err := json.NewDecoder(rq.Body).Decode(&sc)
+	if err != nil {
+		http.Error(w, "bad request body", http.StatusBadRequest)
+		return
+	}
+
+	if sc.S != ACTIVE && sc.S != DEPRECATED {
+		http.Error(w, "unknown status", http.StatusBadRequest)
+		return
+	}
+
+	// connect to db
+	db := h.Database
+
+	var s Status
+	err = db.QueryRow(`SELECT status FROM cannonical_order WHERE real_vibe=$1`, sc.K).Scan(&s)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		http.Error(w, "cannot connect to database", http.StatusInternalServerError)
+		return
+	}
+
+	if errors.Is(err, sql.ErrNoRows) {
+		http.Error(w, fmt.Sprintf("vibe %s not found", sc.K), http.StatusNotFound)
+		return
+	}
+
+	if sc.S == s {
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(map[string]string{"message": "status accepted, nothing to change"})
+		return
+	}
+
+	if _, err := db.Exec(`UPDATE cannonical_order SET status=$1 WHERE real_vibe=$2`, sc.S, sc.K); err != nil {
+		http.Error(w, "failed to update vibe status", http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(map[string]string{"message": fmt.Sprintf("status changed for vibe %s", sc.K)})
+}
