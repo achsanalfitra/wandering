@@ -195,6 +195,8 @@ func (h *Handler) Reorder(w http.ResponseWriter, rq *http.Request) {
 
 	var ioa []ios
 
+	w.Header().Set("Content-Type", "application/json")
+
 	// connect to db
 	db := h.Database
 	tx, err := db.Begin()
@@ -263,4 +265,58 @@ func (h *Handler) Reorder(w http.ResponseWriter, rq *http.Request) {
 
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(map[string]string{"message": fmt.Sprintf("data reordered from row %d to %d", ioa[0].ID, ioa[len(ioa)-1].ID)})
+}
+
+func (h *Handler) Freeze(w http.ResponseWriter, rq *http.Request) {
+	var ia []int64
+
+	w.Header().Set("Content-Type", "application/json")
+
+	// begin transaction
+	db := h.Database
+	tx, err := db.Begin()
+	if err != nil {
+		http.Error(w, "failed to connect to database", http.StatusInternalServerError)
+		return
+	}
+	defer tx.Rollback()
+
+	// get the unfrozen rows
+	rows, err := tx.Query(`SELECT id FROM cannonical_order WHERE frozen=false`)
+	if err != nil {
+		http.Error(w, "failed to query unfrozen rows", http.StatusInternalServerError)
+		return
+	}
+	defer rows.Close()
+
+	// assign rows
+	for rows.Next() {
+		var i int64
+		if err := rows.Scan(&i); err != nil {
+			http.Error(w, "failed to scan row", http.StatusInternalServerError)
+			return
+		}
+		ia = append(ia, i)
+	}
+
+	if len(ia) == 0 {
+		http.Error(w, "unfrozen rows not found", http.StatusNotFound)
+		return
+	}
+
+	// flip the frozen rows
+	for _, i := range ia {
+		if _, err := tx.Exec(`UPDATE cannonical_order SET frozen=true WHERE id=ANY($1)`, i); err != nil {
+			http.Error(w, "unexpected error occured", http.StatusInternalServerError)
+			return
+		}
+	}
+
+	if err := tx.Commit(); err != nil {
+		http.Error(w, "failed to reorder cannonical order", http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(map[string]string{"message": fmt.Sprintf("data is frozen from row %d to %d", ia[0], ia[len(ia)-1])})
 }
