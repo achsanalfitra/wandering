@@ -186,3 +186,81 @@ func (h *Handler) ChangeStatus(w http.ResponseWriter, rq *http.Request) {
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(map[string]string{"message": fmt.Sprintf("status changed for vibe %s", sc.K)})
 }
+
+func (h *Handler) Reorder(w http.ResponseWriter, rq *http.Request) {
+	type ios struct {
+		ID int64 `json:"id"`
+		O  int64 `json:"vibe_order"`
+	}
+
+	var ioa []ios
+
+	// connect to db
+	db := h.Database
+	tx, err := db.Begin()
+	if err != nil {
+		http.Error(w, "failed to connect to database", http.StatusInternalServerError)
+		return
+	}
+	defer tx.Rollback()
+
+	// get the unfrozen rows
+	rows, err := tx.Query(`SELECT id, vibe_order FROM cannonical_order WHERE frozen=false`)
+	if err != nil {
+		http.Error(w, "failed to query unfrozen rows", http.StatusInternalServerError)
+		return
+	}
+	defer rows.Close()
+
+	// assign the rows
+	for rows.Next() {
+		var ioi ios
+		if err := rows.Scan(&ioi.ID, &ioi.O); err != nil {
+			http.Error(w, "failed to scan row", http.StatusInternalServerError)
+			return
+		}
+		ioa = append(ioa, ioi)
+	}
+
+	if len(ioa) == 0 {
+		http.Error(w, "unfrozen rows not found", http.StatusNotFound)
+		return
+	}
+
+	// get the last frozen order
+	var io ios
+	err = tx.QueryRow(`SELECT id, vibe_order FROM cannonical_order WHERE frozen=true and id<$1 ORDER BY id DESC LIMIT 1`, ioa[0].ID).Scan(&io.ID, &io.O)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			io.O = 0
+		} else {
+			http.Error(w, "cannot connect to database", http.StatusInternalServerError)
+			return
+		}
+	}
+
+	if ioa[0].O-io.O > 1 {
+		ioa[0].O -= ioa[0].O - io.O - 1
+	}
+
+	// fix the gaps
+	e := ioa[0].O
+
+	for _, i := range ioa {
+		if i.O != e {
+			if _, err := tx.Exec(`UPDATE cannonical_order SET vibe_order=$1 WHERE id=$2`, e, i.ID); err != nil {
+				http.Error(w, "unexpected error occured", http.StatusInternalServerError)
+				return
+			}
+		}
+		e++
+	}
+
+	if err := tx.Commit(); err != nil {
+		http.Error(w, "failed to reorder cannonical order", http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(map[string]string{"message": fmt.Sprintf("data reordered from row %d to %d", ioa[0].ID, ioa[len(ioa)-1].ID)})
+}
