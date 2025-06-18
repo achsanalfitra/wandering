@@ -13,4 +13,9 @@
 
 1. create testing architecture within this codebase
 2. set up test environment, including db and other dependencies
+   1. create Dockerfile image
+   2. create script to create the table and to tear it down
+   3. add Go entry point
+   4. write test files
+   5. do it
 3. define test workflow
