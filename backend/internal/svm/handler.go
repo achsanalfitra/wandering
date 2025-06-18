@@ -2,10 +2,13 @@ package svm
 
 import (
 	"database/sql"
+	"encoding/csv"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
+	"strconv"
+	"time"
 )
 
 // handlers for SVM
@@ -410,4 +413,65 @@ func (h *Handler) Freeze(w http.ResponseWriter, rq *http.Request) {
 
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(map[string]string{"message": fmt.Sprintf("data is frozen from row %d to %d", ia[0], ia[len(ia)-1])})
+}
+
+func (h *Handler) CannonicalVibesToCSV(w http.ResponseWriter, rq *http.Request) {
+	type cos struct {
+		ID int64
+		O  int64
+		K  string
+		S  Status
+	}
+
+	var coa []cos
+
+	t := time.Now()
+	w.Header().Set("Content-Type", "text/csv")
+	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=cannonical_order_%s.csv", t.Format(time.RFC3339)))
+
+	// connect to db
+	db := h.Database
+
+	rows, err := db.Query(`SELECT id, real_vibe, vibe_order, status FROM cannonical_order`)
+	if err != nil {
+		http.Error(w, "failed to query cannonical vibes", http.StatusInternalServerError)
+		return
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var coi cos
+		if err := rows.Scan(&coi.ID, &coi.K, &coi.O, &coi.S); err != nil {
+			http.Error(w, "failed to scan row", http.StatusInternalServerError)
+			return
+		}
+		coa = append(coa, coi)
+	}
+
+	if len(coa) == 0 {
+		http.Error(w, "no real vibes found", http.StatusNotFound)
+		return
+	}
+
+	// prepare the csv
+	cw := csv.NewWriter(w)
+
+	// write header
+	cw.Write([]string{"id", "real_vibe", "vibe_order", "status"})
+
+	// write the data
+	for _, coi := range coa {
+		cw.Write([]string{
+			strconv.FormatInt(coi.ID, 10),
+			string(coi.K),
+			strconv.FormatInt(coi.O, 10),
+			string(coi.S),
+		})
+	}
+
+	// flush the data
+	cw.Flush()
+	if err := cw.Error(); err != nil {
+		http.Error(w, "failed to flush csv", http.StatusInternalServerError)
+	}
 }
