@@ -8,3 +8,9 @@
    2. ~~Return OK or NOT OK~~
    3. When the service is created
 5. Test every handlers
+
+# Key requirement tasks
+
+1. create testing architecture within this codebase
+2. set up test environment, including db and other dependencies
+3. define test workflow

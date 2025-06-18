@@ -304,8 +304,9 @@ func (h *Handler) Reorder(w http.ResponseWriter, rq *http.Request) {
 	}
 
 	// get the last frozen order
+	// order by vibe_order descending to get the latest data available
 	var io ios
-	err = tx.QueryRow(`SELECT id, vibe_order FROM cannonical_order WHERE frozen=true and id<$1 ORDER BY id DESC LIMIT 1`, ioa[0].ID).Scan(&io.ID, &io.O)
+	err = tx.QueryRow(`SELECT id, vibe_order FROM cannonical_order WHERE frozen=true and vibe_order<$1 ORDER BY vibe_order DESC LIMIT 1`, ioa[0].ID).Scan(&io.ID, &io.O)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			io.O = 0
@@ -317,6 +318,22 @@ func (h *Handler) Reorder(w http.ResponseWriter, rq *http.Request) {
 
 	if ioa[0].O-io.O > 1 {
 		ioa[0].O -= ioa[0].O - io.O - 1
+	}
+
+	// sort the cannonical orders
+	// we use bubble sort
+	var s bool
+	for i := range len(ioa) - 1 {
+		s = false
+		for j := range len(ioa) - 1 - i {
+			if ioa[j].O > ioa[j+1].O {
+				ioa[j], ioa[j+1] = ioa[j+1], ioa[j]
+				s = true
+			}
+		}
+		if !s {
+			break
+		}
 	}
 
 	// fix the gaps
