@@ -30,5 +30,29 @@ func TestMain(m *testing.M) {
 		log.Fatalf("failed to ping once again")
 	}
 
+	// open file with name up
+	stmt, err := os.ReadFile("C:/Users/achsanalfitra/Documents/hackathons/google-platform-hackathon/wandering/backend/internal/migration/0001_cannonical_order_up.sql")
+	if err != nil {
+		log.Fatalf("failed to load up statement")
+	}
+
+	if _, err := db.DB.Exec(string(stmt)); err != nil {
+		log.Fatalf("failed to execute statement")
+	}
+
+	// run test code
+	c := m.Run()
+
+	// open file with name down
+	stmt, err = os.ReadFile("C:/Users/achsanalfitra/Documents/hackathons/google-platform-hackathon/wandering/backend/internal/migration/0001_cannonical_order_down.sql")
+	if err != nil {
+		log.Fatalf("failed to load up statement")
+	}
+
+	if _, err := db.DB.Exec(string(stmt)); err != nil {
+		log.Fatalf("failed to execute statement")
+	}
+
 	log.Println("success!")
+	os.Exit(c)
 }
