@@ -17,5 +17,5 @@
    2. create script to create the table and to tear it down
    3. add Go entry point
    4. write test files
-   5. do it
+   5. test
 3. define test workflow
