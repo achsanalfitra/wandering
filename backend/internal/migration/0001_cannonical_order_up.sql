@@ -8,6 +8,7 @@ CREATE TABLE IF NOT EXISTS cannonical_order (
     id BIGSERIAL PRIMARY KEY,
     real_vibe VARCHAR(255) NOT NULL UNIQUE,
     vibe_order BIGINT NOT NULL UNIQUE,
+    frozen BOOLEAN NOT NULL DEFAULT FALSE,
     version VARCHAR(20),
     status status_type NOT NULL DEFAULT 'active'
 )
