@@ -6,8 +6,12 @@ import (
 	"testing"
 
 	"github.com/achsanalfitra/wandering/backend/internal/config"
+	svm_testutil "github.com/achsanalfitra/wandering/backend/internal/svm/testutil"
 	"github.com/achsanalfitra/wandering/backend/internal/util"
 )
+
+// global var
+var HTest *Handler
 
 // testing entry point for the svm service
 
@@ -39,6 +43,12 @@ func TestMain(m *testing.M) {
 	if _, err := db.DB.Exec(string(stmt)); err != nil {
 		log.Fatalf("failed to execute statement")
 	}
+
+	// seed data
+	svm_testutil.SeedData(db.DB)
+
+	// setup services
+	HTest = NewHandler(db.DB)
 
 	// run test code
 	c := m.Run()
