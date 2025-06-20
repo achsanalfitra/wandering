@@ -18,6 +18,12 @@ type Handler struct {
 	// other dependencies here
 }
 
+func NewHandler(db *sql.DB) *Handler {
+	return &Handler{
+		Database: db,
+	}
+}
+
 func (h *Handler) ValidateInput(w http.ResponseWriter, rq *http.Request) {
 	type is struct {
 		I []string `json:"real_vibes"`
